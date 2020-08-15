@@ -2,22 +2,15 @@
 
 import argparse
 import re
-import glob
-import mimetypes
 from enum import Enum
 import os.path
 import imdb
 import hashlib
-import shutil
+from utils import file
+from utils.file import Filetype
 
 HISTORY_FILENAME = "history"
 past_show_info = dict()
-
-class Filetype(Enum):
-    VIDEO =   0
-    AUDIO =   1
-    CAPTION = 2
-    UNKNOWN = 3
 
 class Action(Enum):
     TEST = 0
@@ -43,29 +36,9 @@ def action_to_string(action):
     else:
         return "invalid"
 
-def get_file_extension(filename):
-    return os.path.splitext(filename)[1]
-
-def get_filetype(filename):
-
-    if get_file_extension(filename) == ".srt":
-        return Filetype.CAPTION
-    elif get_file_extension(filename) == ".mkv":
-        return Filetype.VIDEO
-
-    guess = mimetypes.guess_type(filename)[0]
-
-    if not guess:
-        return Filetype.UNKNOWN
-
-    if guess.startswith("video"):
-        return Filetype.VIDEO
-    else:
-        return Filetype.UNKNOWN
-
 def get_new_filename(old_filename, format, show_title, season, episode, episode_title):
 
-    extension = get_file_extension(old_filename)
+    extension = file.extension(old_filename)
 
     new = format
 
@@ -91,27 +64,15 @@ def get_season_episode(filename):
 
     return None, None
 
-def get_checksum(filename):
-
-    try:
-        file = open(filename, "rb")
-    except FileNotFoundError:
-        return ""
-
-    rv = hashlib.md5(file.read()).hexdigest()
-    file.close()
-
-    return rv
-
 def update_history(old, new, action):
 
-    s = "{},{},\"{}\",\"{}\"".format(action_to_string(action), get_checksum(old), old, new)
+    s = "{},{},\"{}\",\"{}\"".format(action_to_string(action), file.checksum(old), old, new)
 
     history_file = open(HISTORY_FILENAME, "a+")
     history_file.write(s + "\n")
     history_file.close()
 
-def rename_file(old, new, action = Action.TEST, print_width = 0):
+def apply_action(old, new, action = Action.TEST, print_width = 0):
 
     print("[{}] \"{:<{width}}\" >> \"{}\"".format(action_to_string(action), old, new, width = print_width))
 
@@ -122,14 +83,11 @@ def rename_file(old, new, action = Action.TEST, print_width = 0):
             print("file doesn't exist \"{}\"".format(old))
             return False
 
-        # make destination directory
-        os.makedirs(new, exist_ok=True)
-
         try:
             if action == Action.MOVE:
-                shutil.move(old, new)
+                file.move(old, new)
             elif action == Action.COPY:
-                shutil.copy(old, new)
+                file.copy(old, new)
             else:
                 return False
 
@@ -190,10 +148,6 @@ def get_show_info(query):
 
     return title, episodes
 
-def get_files(d):
-    files = glob.glob(d + "/**", recursive=True)
-    return [f for f in files if os.path.isfile(f)]
-
 def get_action(arg):
 
     if arg:
@@ -242,7 +196,7 @@ def process_file(filename, action, format, query = None):
     season, episode = get_season_episode(filename)
     episode_title = episode_info[season][episode]["title"]
     new_episode_name = get_new_filename(filename, format, series_title, season, episode, episode_title)
-    rename_file(filename, new_episode_name, action)
+    apply_action(filename, new_episode_name, action)
 
     print()
     return True
@@ -257,7 +211,6 @@ def format_help():
 
 def main():
     
-    mimetypes.init()
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     
     # require input file/directory or list file
@@ -282,7 +235,7 @@ def main():
     
     if not args.list:
         # find episode and caption files
-        files = get_files(input)
+        files = file.listdir(input, recursive = True)
     else:
         list_file = open(args.list, 'r')
         lines = list_file.readlines()
@@ -290,8 +243,8 @@ def main():
         list_file.close()
     
     # filter caption and episode files
-    captions = list(filter(lambda ep: (get_filetype(ep) == Filetype.CAPTION), files))
-    episodes = list(filter(lambda ep: (get_filetype(ep) == Filetype.VIDEO), files))
+    captions = list(filter(lambda ep: (file.type(ep) == Filetype.CAPTION), files))
+    episodes = list(filter(lambda ep: (file.type(ep) == Filetype.VIDEO), files))
     
     if len(episodes) != 0:
         for ep in episodes:
