@@ -66,8 +66,6 @@ def get_new_filename(old_filename, format, show_title, season, episode, episode_
 
     extension = get_file_extension(old_filename)
 
-    print("{} {} {} {}".format(format, show_title, season, episode))
-
     new = format
 
     new = new.replace(Format.SHOW_TITLE.value[0], show_title)
