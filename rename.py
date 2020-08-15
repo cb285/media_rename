@@ -77,37 +77,40 @@ def get_season_episode(filename):
     return None, None
     
 def get_checksum(filename):
-    
+
     try:
         file = open(filename, "rb")
     except FileNotFoundError:
-        print("file doesn't exist")
         return ""
-    
+
     rv = hashlib.md5(file.read()).hexdigest()
     file.close()
 
     return rv
 
+def update_history(old, new, action):
+    
+    s = "{},{},\"{}\",\"{}\"".format(action_to_string(action), get_checksum(old), old, new)
+    
+    history_file = open(HISTORY_FILENAME, "a+")
+    history_file.write(s + "\n")
+    history_file.close()
+
 def rename_file(old, new, output_dir, action = Action.TEST, print_width = 0):
 
-    new = new.replace("/", "")
+    #new = new.replace("/", "")
     
-    new = "output/" + new
+    new = output_dir + "/" + new
     
-    print("[{}] {:<{width}} >> {}".format(action_to_string(action), old, new, width = print_width))
-    
-    if not os.path.exists(old):            
-        if action != Action.TEST:
-            print("file doesn't exist \"{}\"".format(old))
-        return False
-    
-    s = get_checksum(old) + ",\"" + old + "\"" + "," + "\"" + new + "\""
+    print("[{}] \"{:<{width}}\" >> \"{}\"".format(action_to_string(action), old, new, width = print_width))
     
     if action != Action.TEST:
-    
-        history_file = open(HISTORY_FILENAME, "a+")
-    
+        
+        # check if file exists
+        if not os.path.exists(old):
+            print("file doesn't exist \"{}\"".format(old))
+            return False
+        
         try:
             os.mkdir(output_dir)
         except FileExistsError:
@@ -120,16 +123,19 @@ def rename_file(old, new, output_dir, action = Action.TEST, print_width = 0):
                 os.copy(old, new)
             else:
                 return False
-            
+
             # add to history
-            history_file.write(s + "\n")
-        
+            update_history(old, new, action)
+
         except FileNotFoundError:
             print("file doesn't exist")
             return False
         
         finally:
             history_file.close()
+    
+    # update history on success
+    update_history(old, new, action)
     
     return True
         
@@ -140,14 +146,20 @@ def find_caption(season, episode, captions):
         
         if not caption_season:
             continue
-            
+        
         # check if matches
         if (season == caption_season) and (episode == caption_episode):
             return cap
 
     return None
+    
+past_show_info = dict()
 
 def get_show_info(query):
+
+    # check if already have info for this show
+    if query in past_show_info:
+        return past_show_info[query]
 
     imdb_api = imdb.IMDb()
     
@@ -172,6 +184,9 @@ def get_show_info(query):
             episodes[season][episode] = dict()
             episodes[season][episode]["title"] = series["episodes"][season][episode]["title"]
     
+    # save to reuse
+    past_show_info[query] = title, episodes
+    
     return title, episodes
 
 def listdir_fullpath(d):
@@ -190,6 +205,45 @@ def get_action(arg):
     
     print("invalid action \"{}\"".format(arg))
     return None
+    
+def guess_title(filename):
+
+    filename = filename.strip()
+    words = re.split('[^a-zA-Z]', filename)
+    
+    words = [word.lower() for word in words]
+    
+    title = ""
+    
+    for i in range(len(words)):
+        if (i < (len(words) - 2)) and (words[i] == "s") and (words[i + 2] == "e"):
+            break
+        title += words[i] + " "
+    
+    return title.strip()
+
+def process_file(filename, action, output_dir, query = None):
+    if not query:
+        search = guess_title(filename)
+    else:
+        search = query
+    
+    print("input \"{}\"".format(filename))
+    print("search \"{}\"".format(search))
+    
+    series_title, episode_info = get_show_info(search)
+    
+    if not series_title:
+        print("not matches found")
+        return False
+    
+    season, episode = get_season_episode(filename)
+    episode_title = episode_info[season][episode]["title"]
+    new_episode_name = get_new_filename(filename, series_title, season, episode, episode_title)
+    rename_file(filename, new_episode_name, output_dir, action)
+
+    print()
+    return True
 
 def main():
     
@@ -202,29 +256,22 @@ def main():
     group.add_argument("--list", "-l", required = False, type=str, action="store", help="file containing list of filenames")
     
     parser.add_argument("--output", "-o", required = False, action="store", help="output directory")
-    parser.add_argument("--query", "-q", required = True, type=str, action="store", help="search query")
     parser.add_argument("--action", "-a", required = False, action="store", help="test, copy, or move")
+    parser.add_argument("--query", "-q", required = False, type=str, action="store", help="search query")
     
     args, args_unknown = parser.parse_known_args()
     
     input = args.input
-    query = args.query
     output_dir = args.output
     action = get_action(args.action)
+    query = args.query
     
+    # check for valid action
     if not action:
         return False
     
     if not output_dir:
-        output_dir = "output/"
-    
-    series_title, episode_info = get_show_info(query)
-    
-    if not series_title:
-        print("couldn't find series")
-        return False
-    
-    print("found show: \"" + series_title + "\"")
+        output_dir = "output"
     
     if not args.list:
         # find episode and caption files
@@ -239,45 +286,13 @@ def main():
     captions = list(filter(lambda ep: (get_filetype(ep) == Filetype.CAPTION), files))
     episodes = list(filter(lambda ep: (get_filetype(ep) == Filetype.VIDEO), files))
     
-    max_filename_len = 0
-    
     if len(episodes) != 0:
-        print("input episodes:")
         for ep in episodes:
-            print("\"" + ep + "\"")
-            
-            if len(ep) > max_filename_len:
-                max_filename_len = len(ep)
-    
-        print()
+            process_file(ep, action, output_dir, query)
     
     if len(captions) != 0:
-        print("input captions:")
         for cap in captions:
-            print("\"" + cap + "\"")
-            
-            if len(cap) > max_filename_len:
-                max_filename_len = len(cap)
-            
-        print()
-    
-    for ep in episodes:
-    
-        season, episode = get_season_episode(ep)
-        
-        episode_title = episode_info[season][episode]["title"]
-        
-        new_episode_name = get_new_filename(ep, series_title, season, episode, episode_title)
-
-        rename_file(ep, new_episode_name, output_dir, action, print_width = max_filename_len)
-
-        cap = find_caption(season, episode, captions)
-        
-        if cap:
-            new_caption_name = get_new_filename(cap, series_title, season, episode, episode_title)
-        
-        if cap:
-            rename_file(cap, new_caption_name, output_dir, action)
+            process_file(cap, action, output_dir, query)
     
     return True
     
