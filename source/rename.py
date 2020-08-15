@@ -4,10 +4,10 @@ import argparse
 import re
 from enum import Enum
 import os.path
-import imdb
 import hashlib
 from utils import file
 from utils.file import Filetype
+from db_api import imdb
 
 HISTORY_FILENAME = "history"
 past_show_info = dict()
@@ -114,40 +114,6 @@ def find_caption(season, episode, captions):
 
     return None
 
-def get_show_info(query):
-
-    # check if already have info for this show
-    if query in past_show_info:
-        return past_show_info[query]
-
-    imdb_api = imdb.IMDb()
-
-    res = imdb_api.search_movie(query)
-
-    if not res:
-        return None, None
-
-    series = imdb_api.get_movie(res[0].movieID)
-    imdb_api.update(series, "episodes")
-    num_seasons = series["number of seasons"]
-    title = series["title"]
-
-    episodes = dict()
-
-    for season in range(1, num_seasons + 1):
-
-        episodes[season] = dict()
-
-        for episode in series["episodes"][season].keys():
-
-            episodes[season][episode] = dict()
-            episodes[season][episode]["title"] = series["episodes"][season][episode]["title"]
-
-    # save to reuse
-    past_show_info[query] = title, episodes
-
-    return title, episodes
-
 def get_action(arg):
 
     if arg:
@@ -187,7 +153,7 @@ def process_file(filename, action, format, query = None):
     print("input \"{}\"".format(filename))
     print("search \"{}\"".format(search))
     
-    series_title, episode_info = get_show_info(search)
+    series_title, episode_info = imdb.search(search)
     
     if not series_title:
         print("not matches found")
