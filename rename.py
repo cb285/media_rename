@@ -133,9 +133,6 @@ def rename_file(old, new, action = Action.TEST, print_width = 0):
             else:
                 return False
 
-            # add to history
-            update_history(old, new, action)
-
         except FileNotFoundError:
             print("file doesn't exist")
             return False
