@@ -8,6 +8,7 @@ import hashlib
 from utils import file
 from utils.file import Filetype
 from db_api import imdb
+import colorama
 
 HISTORY_FILENAME = "history"
 past_show_info = dict()
@@ -22,6 +23,11 @@ class Format(Enum):
     EPISODE_TITLE = [ "%t", "episode title" ]
     SEASON        = [ "%s", "season number" ]
     EPISODE       = [ "%e", "episode number" ]
+
+def print_error(s):
+    colorama.init()
+    print(colorama.Fore.RED + str(s))
+    print(colorama.Style.RESET_ALL)
 
 def action_to_string(action):
 
@@ -80,7 +86,7 @@ def apply_action(old, new, action = Action.TEST, print_width = 0):
 
         # check if file exists
         if not os.path.exists(old):
-            print("file doesn't exist \"{}\"".format(old))
+            print_error("file doesn't exist \"{}\"".format(old))
             return False
 
         try:
@@ -92,7 +98,7 @@ def apply_action(old, new, action = Action.TEST, print_width = 0):
                 return False
 
         except FileNotFoundError:
-            print("file doesn't exist")
+            print_error("file doesn't exist")
             return False
 
     # update history on success
@@ -125,7 +131,7 @@ def get_action(arg):
         if action_to_string(action) == action_str:
             return Action(action)
 
-    print("invalid action \"{}\"".format(arg))
+    print_error("invalid action \"{}\"".format(arg))
     return None
     
 def guess_title(filename):
@@ -156,10 +162,21 @@ def process_file(filename, action, format, query = None):
     series_title, episode_info = imdb.search(search)
     
     if not series_title:
-        print("not matches found")
+        print_error("not matches found")
         return False
     
+    # get season and episode from filename
     season, episode = get_season_episode(filename)
+    
+    # check if have info for this episode
+    if season not in episode_info:
+        print_error("season {:>02} not found".format(season))
+        return False
+    
+    if episode not in episode_info[season]:
+        print_error("S{:>02}E{:>02} not found".format(season, episode))
+        return False
+    
     episode_title = episode_info[season][episode]["title"]
     new_episode_name = get_new_filename(filename, format, series_title, season, episode, episode_title)
     apply_action(filename, new_episode_name, action)
@@ -214,11 +231,13 @@ def main():
     
     if len(episodes) != 0:
         for ep in episodes:
-            process_file(ep, action, format, query)
+            if not process_file(ep, action, format, query):
+                return False
     
     if len(captions) != 0:
         for cap in captions:
-            process_file(cap, action, format, query)
+            if not process_file(cap, action, format, query):
+                return False
     
     return True
     
