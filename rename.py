@@ -8,6 +8,7 @@ from enum import Enum
 import os.path
 import imdb
 import hashlib
+import shutil
 
 HISTORY_FILENAME = "history"
 past_show_info = dict()
@@ -46,22 +47,22 @@ def get_file_extension(filename):
     return os.path.splitext(filename)[1]
 
 def get_filetype(filename):
-    
+
     if get_file_extension(filename) == ".srt":
         return Filetype.CAPTION
     elif get_file_extension(filename) == ".mkv":
         return Filetype.VIDEO
-    
+
     guess = mimetypes.guess_type(filename)[0]
-    
+
     if not guess:
         return Filetype.UNKNOWN
-    
+
     if guess.startswith("video"):
         return Filetype.VIDEO
     else:
         return Filetype.UNKNOWN
-        
+
 def get_new_filename(old_filename, format, show_title, season, episode, episode_title):
 
     extension = get_file_extension(old_filename)
@@ -78,18 +79,18 @@ def get_new_filename(old_filename, format, show_title, season, episode, episode_
 def get_season_episode(filename):
 
     m = re.search("(?i)S(\d+)E(\d+)", filename)
-    
+
     # no results
     if not m:
         return None, None
-    
+
     groups = m.groups()
-    
+
     if len(groups) >= 2:
         return int(groups[0]), int(groups[1])
-        
+
     return None, None
-    
+
 def get_checksum(filename):
 
     try:
@@ -103,29 +104,32 @@ def get_checksum(filename):
     return rv
 
 def update_history(old, new, action):
-    
+
     s = "{},{},\"{}\",\"{}\"".format(action_to_string(action), get_checksum(old), old, new)
-    
+
     history_file = open(HISTORY_FILENAME, "a+")
     history_file.write(s + "\n")
     history_file.close()
 
 def rename_file(old, new, action = Action.TEST, print_width = 0):
-    
+
     print("[{}] \"{:<{width}}\" >> \"{}\"".format(action_to_string(action), old, new, width = print_width))
-    
+
     if action != Action.TEST:
-        
+
         # check if file exists
         if not os.path.exists(old):
             print("file doesn't exist \"{}\"".format(old))
             return False
-        
+
+        # make destination directory
+        os.makedirs(new, exist_ok=True)
+
         try:
             if action == Action.MOVE:
-                os.rename(old, new)
+                shutil.move(old, new)
             elif action == Action.COPY:
-                os.copy(old, new)
+                shutil.copy(old, new)
             else:
                 return False
 
@@ -135,23 +139,20 @@ def rename_file(old, new, action = Action.TEST, print_width = 0):
         except FileNotFoundError:
             print("file doesn't exist")
             return False
-        
-        finally:
-            history_file.close()
-    
+
     # update history on success
     update_history(old, new, action)
-    
+
     return True
         
 def find_caption(season, episode, captions):
 
     for cap in captions:
         caption_season, caption_episode = get_season_episode(cap)
-        
+
         if not caption_season:
             continue
-        
+
         # check if matches
         if (season == caption_season) and (episode == caption_episode):
             return cap
@@ -165,47 +166,47 @@ def get_show_info(query):
         return past_show_info[query]
 
     imdb_api = imdb.IMDb()
-    
+
     res = imdb_api.search_movie(query)
-    
+
     if not res:
         return None, None
-    
+
     series = imdb_api.get_movie(res[0].movieID)
     imdb_api.update(series, "episodes")
     num_seasons = series["number of seasons"]
     title = series["title"]
-    
+
     episodes = dict()
-    
+
     for season in range(1, num_seasons + 1):
-    
+
         episodes[season] = dict()
-        
+
         for episode in series["episodes"][season].keys():
-            
+
             episodes[season][episode] = dict()
             episodes[season][episode]["title"] = series["episodes"][season][episode]["title"]
-    
+
     # save to reuse
     past_show_info[query] = title, episodes
-    
+
     return title, episodes
 
 def listdir_fullpath(d):
     return [os.path.join(d, f) for f in os.listdir(d)]
 
 def get_action(arg):
-    
+
     if arg:
         action_str = arg.lower()
     else:
         return Action.TEST
-    
+
     for action in [e.value for e in Action]:
         if action_to_string(action) == action_str:
-            return action
-    
+            return Action(action)
+
     print("invalid action \"{}\"".format(arg))
     return None
     
