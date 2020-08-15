@@ -190,8 +190,9 @@ def get_show_info(query):
 
     return title, episodes
 
-def listdir_fullpath(d):
-    return [os.path.join(d, f) for f in os.listdir(d)]
+def get_files(d):
+    files = glob.glob(d + "/**", recursive=True)
+    return [f for f in files if os.path.isfile(f)]
 
 def get_action(arg):
 
@@ -281,7 +282,7 @@ def main():
     
     if not args.list:
         # find episode and caption files
-        files = listdir_fullpath(input)
+        files = get_files(input)
     else:
         list_file = open(args.list, 'r')
         lines = list_file.readlines()
