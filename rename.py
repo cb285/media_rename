@@ -25,7 +25,7 @@ class Action(Enum):
 
 class Format(Enum):
     SHOW_TITLE    = [ "%T", "show title" ]
-    EPISODE_TITLE = [ "%E", "episode title" ]
+    EPISODE_TITLE = [ "%t", "episode title" ]
     SEASON        = [ "%s", "season number" ]
     EPISODE       = [ "%e", "episode number" ]
 
@@ -66,12 +66,14 @@ def get_new_filename(old_filename, format, show_title, season, episode, episode_
 
     extension = get_file_extension(old_filename)
 
+    print("{} {} {} {}".format(format, show_title, season, episode))
+
     new = format
 
     new = new.replace(Format.SHOW_TITLE.value[0], show_title)
     new = new.replace(Format.EPISODE_TITLE.value[0], episode_title)
     new = new.replace(Format.SEASON.value[0], "{:02d}".format(season))
-    new = new.replace(Format.EPISODE.value[0], "{:02d}".format(season))
+    new = new.replace(Format.EPISODE.value[0], "{:02d}".format(episode))
 
     return new + extension
     
