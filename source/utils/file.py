@@ -43,7 +43,7 @@ def checksum(filename):
     return rv
 
 def extension(filename):
-    return os.path.splitext(filename)[1]
+    return os.path.splitext(filename)[1].lower()
 
 def type(filename):
 
@@ -65,5 +65,5 @@ def type(filename):
         return Filetype.UNKNOWN
 
 def listdir(directory, recursive = False):
-    files = glob.glob(d + "/**", recursive=recursive)
+    files = glob.glob(directory + "/**", recursive=recursive)
     return [f for f in files if os.path.isfile(f)]
