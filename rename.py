@@ -211,7 +211,7 @@ def get_action(arg):
     
 def guess_title(filename):
 
-    filename = filename.strip()
+    filename = os.path.basename(filename.strip())
     words = re.split('[^a-zA-Z]', filename)
     
     words = [word.lower() for word in words]
