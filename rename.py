@@ -9,7 +9,8 @@ import os.path
 import imdb
 import hashlib
 
-HISTORY_FILENAME = "shows_history"
+HISTORY_FILENAME = "history"
+past_show_info = dict()
 
 class Filetype(Enum):
     VIDEO =   0
@@ -21,6 +22,12 @@ class Action(Enum):
     TEST = 0
     MOVE = 1
     COPY = 2
+
+class Format(Enum):
+    SHOW_TITLE    = [ "%T", "show title" ]
+    EPISODE_TITLE = [ "%E", "episode title" ]
+    SEASON        = [ "%s", "season number" ]
+    EPISODE       = [ "%e", "episode number" ]
 
 def action_to_string(action):
 
@@ -55,11 +62,18 @@ def get_filetype(filename):
     else:
         return Filetype.UNKNOWN
         
-def get_new_filename(old_filename, show_title, season, episode, episode_title):
+def get_new_filename(old_filename, format, show_title, season, episode, episode_title):
 
     extension = get_file_extension(old_filename)
-    
-    return show_title + " - S" + "{:02d}".format(season) + "E" + "{:02d}".format(episode) + " - " + episode_title + extension
+
+    new = format
+
+    new = new.replace(Format.SHOW_TITLE.value[0], show_title)
+    new = new.replace(Format.EPISODE_TITLE.value[0], episode_title)
+    new = new.replace(Format.SEASON.value[0], "{:02d}".format(season))
+    new = new.replace(Format.EPISODE.value[0], "{:02d}".format(season))
+
+    return new + extension
     
 def get_season_episode(filename):
 
@@ -96,11 +110,7 @@ def update_history(old, new, action):
     history_file.write(s + "\n")
     history_file.close()
 
-def rename_file(old, new, output_dir, action = Action.TEST, print_width = 0):
-
-    #new = new.replace("/", "")
-    
-    new = output_dir + "/" + new
+def rename_file(old, new, action = Action.TEST, print_width = 0):
     
     print("[{}] \"{:<{width}}\" >> \"{}\"".format(action_to_string(action), old, new, width = print_width))
     
@@ -110,11 +120,6 @@ def rename_file(old, new, output_dir, action = Action.TEST, print_width = 0):
         if not os.path.exists(old):
             print("file doesn't exist \"{}\"".format(old))
             return False
-        
-        try:
-            os.mkdir(output_dir)
-        except FileExistsError:
-            pass
         
         try:
             if action == Action.MOVE:
@@ -152,8 +157,6 @@ def find_caption(season, episode, captions):
             return cap
 
     return None
-    
-past_show_info = dict()
 
 def get_show_info(query):
 
@@ -222,7 +225,7 @@ def guess_title(filename):
     
     return title.strip()
 
-def process_file(filename, action, output_dir, query = None):
+def process_file(filename, action, format, query = None):
     if not query:
         search = guess_title(filename)
     else:
@@ -239,39 +242,44 @@ def process_file(filename, action, output_dir, query = None):
     
     season, episode = get_season_episode(filename)
     episode_title = episode_info[season][episode]["title"]
-    new_episode_name = get_new_filename(filename, series_title, season, episode, episode_title)
-    rename_file(filename, new_episode_name, output_dir, action)
+    new_episode_name = get_new_filename(filename, format, series_title, season, episode, episode_title)
+    rename_file(filename, new_episode_name, action)
 
     print()
     return True
+    
+def format_help():
+
+    s = ""
+    for spec in [e.value for e in Format]:
+        s += "\"%{}\" : {}\n".format(spec[0], spec[1])
+    
+    return s
 
 def main():
     
     mimetypes.init()
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     
     # require input file/directory or list file
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--input", "-i", required = False, type=str, action="store", help="input directory")
     group.add_argument("--list", "-l", required = False, type=str, action="store", help="file containing list of filenames")
     
-    parser.add_argument("--output", "-o", required = False, action="store", help="output directory")
-    parser.add_argument("--action", "-a", required = False, action="store", help="test, copy, or move")
+    parser.add_argument("--format", "-f", required = True, type=str, action="store", help=format_help())
+    parser.add_argument("--action", "-a", required = False, type=str, action="store", help="test, copy, or move")
     parser.add_argument("--query", "-q", required = False, type=str, action="store", help="search query")
     
     args, args_unknown = parser.parse_known_args()
     
     input = args.input
-    output_dir = args.output
+    format = args.format
     action = get_action(args.action)
     query = args.query
     
     # check for valid action
     if not action:
         return False
-    
-    if not output_dir:
-        output_dir = "output"
     
     if not args.list:
         # find episode and caption files
@@ -288,11 +296,11 @@ def main():
     
     if len(episodes) != 0:
         for ep in episodes:
-            process_file(ep, action, output_dir, query)
+            process_file(ep, action, format, query)
     
     if len(captions) != 0:
         for cap in captions:
-            process_file(cap, action, output_dir, query)
+            process_file(cap, action, format, query)
     
     return True
     
