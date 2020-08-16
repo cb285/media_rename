@@ -325,6 +325,9 @@ def main():
                 files.append(line)
 
         list_file.close()
+
+    # sort files alphabetically
+    files = sorted(files, key=str.lower)
     
     media = []
     
