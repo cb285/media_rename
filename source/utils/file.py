@@ -53,7 +53,7 @@ def type(filename):
 
     mimetypes.init()
 
-    if extension(filename) == ".srt":
+    if (extension(filename) == ".srt") or (extension(filename) == ".sub"):
         return FileType.CAPTION
     elif extension(filename) == ".mkv":
         return FileType.VIDEO
