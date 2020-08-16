@@ -6,7 +6,7 @@ import glob
 from enum import Enum
 import mimetypes
 
-class Filetype(Enum):
+class FileType(Enum):
     VIDEO =   0
     AUDIO =   1
     CAPTION = 2
@@ -50,19 +50,19 @@ def type(filename):
     mimetypes.init()
 
     if extension(filename) == ".srt":
-        return Filetype.CAPTION
+        return FileType.CAPTION
     elif extension(filename) == ".mkv":
-        return Filetype.VIDEO
+        return FileType.VIDEO
 
     guess = mimetypes.guess_type(filename)[0]
 
     if not guess:
-        return Filetype.UNKNOWN
+        return FileType.UNKNOWN
 
     if guess.startswith("video"):
-        return Filetype.VIDEO
+        return FileType.VIDEO
     else:
-        return Filetype.UNKNOWN
+        return FileType.UNKNOWN
 
 def listdir(directory, recursive = False):
     files = glob.glob(directory + "/**", recursive=recursive)

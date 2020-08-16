@@ -6,7 +6,7 @@ from enum import Enum
 import os.path
 import hashlib
 from utils import file
-from utils.file import Filetype
+from utils.file import FileType
 from db_api import imdb
 import colorama
 
@@ -19,10 +19,27 @@ class Action(Enum):
     COPY = 2
 
 class Format(Enum):
-    SHOW_TITLE    = [ "%T", "show title" ]
+    TITLE         = [ "%T", "movie/show title" ]
+    YEAR          = [ "%Y", "movie/show year" ]
     EPISODE_TITLE = [ "%t", "episode title" ]
     SEASON        = [ "%s", "season number" ]
     EPISODE       = [ "%e", "episode number" ]
+
+class MediaType(Enum):
+    UNKNOWN = 0
+    MOVIE   = 1
+    TV      = 2
+
+class MediaFile():
+    def __init__(self):
+        self.file_type = FileType.UNKNOWN
+        self.media_type = MediaType.UNKNOWN
+        self.filename = None
+        self.season = None
+        self.episode = None
+
+    def __str__(self):
+        return self.filename
 
 def print_error(s):
     colorama.init()
@@ -42,14 +59,27 @@ def action_to_string(action):
     else:
         return "invalid"
 
-def get_new_filename(old_filename, format, show_title, season, episode, episode_title):
+def format_movie(movie, format, old_filename):
+
+    extension = file.extension(old_filename)
+    new = format
+    
+    new = new.replace(Format.TITLE.value[0], movie.title)
+    new = new.replace(Format.YEAR.value[0], str(movie.year))
+    
+    return new + extension
+
+def format_tv(show, format, season, episode, old_filename):
+
+    episode_info = show.episodes[season][episode]
 
     extension = file.extension(old_filename)
 
     new = format
 
-    new = new.replace(Format.SHOW_TITLE.value[0], show_title)
-    new = new.replace(Format.EPISODE_TITLE.value[0], episode_title)
+    new = new.replace(Format.TITLE.value[0], show.title)
+    new = new.replace(Format.YEAR.value[0], str(show.year))
+    new = new.replace(Format.EPISODE_TITLE.value[0], episode_info["title"])
     new = new.replace(Format.SEASON.value[0], "{:02d}".format(season))
     new = new.replace(Format.EPISODE.value[0], "{:02d}".format(episode))
 
@@ -69,6 +99,28 @@ def get_season_episode(filename):
         return int(groups[0]), int(groups[1])
 
     return None, None
+    
+def identify_media(filename):
+    
+    filename = filename.strip()
+    
+    rv = MediaFile()
+    rv.filename = filename
+
+    season, episode = get_season_episode(filename)
+    rv.file_type = file.type(filename)
+
+    # tv show file
+    if season:
+        rv.media_type = MediaType.TV
+        rv.season = season
+        rv.episode = episode
+
+    # movie file
+    else:
+        rv.media_type = MediaType.MOVIE
+
+    return rv
 
 def update_history(old, new, action):
 
@@ -125,20 +177,6 @@ def apply_action(old, new, action = Action.TEST, interactive = False, print_widt
     update_history(old, new, action)
 
     return True
-        
-def find_caption(season, episode, captions):
-
-    for cap in captions:
-        caption_season, caption_episode = get_season_episode(cap)
-
-        if not caption_season:
-            continue
-
-        # check if matches
-        if (season == caption_season) and (episode == caption_episode):
-            return cap
-
-    return None
 
 def get_action(arg):
 
@@ -154,15 +192,16 @@ def get_action(arg):
     print_error("invalid action \"{}\"".format(arg))
     return None
     
-def guess_title(filename):
+def guess_title(media):
 
-    filename = os.path.basename(filename.strip())
-    words = re.split('[^a-zA-Z]', filename)
+    words = re.split('[^a-zA-Z]', media.filename)
     
     words = [word.lower() for word in words]
     
     title = ""
     
+    if (media.media_type == MediaType.MOVIE):
+        return "".join(media.filename.split(".")[:-1])
     for i in range(len(words)):
         if (i < (len(words) - 2)) and (words[i] == "s") and (words[i + 2] == "e"):
             break
@@ -170,23 +209,48 @@ def guess_title(filename):
     
     return title.strip()
 
-def process_file(filename, action, format, query = None, interactive = False):
+def process_movie(mov, action, format, query = None, interactive = False):
+
     if not query:
-        search = guess_title(filename)
+        search = guess_title(mov)
     else:
         search = query
-    
-    print("input \"{}\"".format(filename))
+
+    print("movie file \"{}\"".format(mov.filename))
     print("search \"{}\"".format(search))
-    
-    info = imdb.search(search)
+
+    info = imdb.search_movie(search)
     
     if not info:
         print_error("not matches found")
         return False
     
+    new_filename = format_movie(info, format, mov.filename)
+    
+    if not apply_action(mov.filename, new_filename, action, interactive=interactive):
+        return False
+
+    print()
+    return True
+
+def process_tv(tv, action, format, query = None, interactive = False):
+
+    if not query:
+        search = guess_title(tv)
+    else:
+        search = query
+
+    print("TV file \"{}\"".format(tv.filename))
+    print("search \"{}\"".format(search))
+
+    info = imdb.search_tv(search)
+
+    if not info:
+        print_error("not matches found")
+        return False
+    
     # get season and episode from filename
-    season, episode = get_season_episode(filename)
+    season, episode = get_season_episode(tv.filename)
     
     # check if have info for this episode
     if season not in info.episodes:
@@ -197,9 +261,9 @@ def process_file(filename, action, format, query = None, interactive = False):
         print_error("S{:>02}E{:>02} not found".format(season, episode))
         return False
     
-    new_episode_name = get_new_filename(filename, format, info.title, season, episode, info.episodes[season][episode]["title"])
+    new_filename = format_tv(info, format, season, episode, tv.filename)
     
-    if not apply_action(filename, new_episode_name, action, interactive=interactive):
+    if not apply_action(tv.filename, new_filename, action, interactive=interactive):
         return False
 
     print()
@@ -213,6 +277,10 @@ def format_help():
     
     return s
 
+def print_list(l):
+    for item in l:
+        print(str(item))
+
 def main():
     
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
@@ -221,20 +289,23 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--input", "-i", required = False, type=str, action="store", help="input directory")
     group.add_argument("--list", "-l", required = False, type=str, action="store", help="file containing list of filenames")
-    
-    parser.add_argument("--format", "-f", required = True, type=str, action="store", help=format_help())
+
+    parser.add_argument("--tv-format", "-tvf", required = True, type=str, action="store", help=format_help())
+    parser.add_argument("--movie-format", "-movf", required = True, type=str, action="store", help=format_help())
     parser.add_argument("--action", "-a", required = False, type=str, action="store", help="test, copy, or move")
     parser.add_argument("--query", "-q", required = False, type=str, action="store", help="search query")
     parser.add_argument("--interactive", "-int", required = False, action="store_true", help="interactive mode")
-    
+
     args, args_unknown = parser.parse_known_args()
-    
+
     input = args.input
-    format = args.format
+    list_filename = args.list
+    movie_format = args.movie_format
+    tv_format = args.tv_format
     action = get_action(args.action)
     query = args.query
     interactive = args.interactive
-    
+
     # check for valid action
     if not action:
         return False
@@ -243,25 +314,44 @@ def main():
         # find episode and caption files
         files = file.listdir(input, recursive = True)
     else:
-        list_file = open(args.list, 'r')
+        list_file = open(list_filename, 'r')
         lines = list_file.readlines()
-        files = [x.strip() for x in lines]
+        
+        files = []
+        
+        for line in lines:
+            line = line.strip()
+            if line != "":
+                files.append(line)
+
         list_file.close()
     
-    # filter caption and episode files
-    captions = list(filter(lambda ep: (file.type(ep) == Filetype.CAPTION), files))
-    episodes = list(filter(lambda ep: (file.type(ep) == Filetype.VIDEO), files))
+    media = []
     
-    if len(episodes) != 0:
-        for ep in episodes:
-            if not process_file(ep, action, format, query, interactive):
-                return False
+    # identify files
+    for file in files:
+        media.append(identify_media(file))
     
-    if len(captions) != 0:
-        for cap in captions:
-            if not process_file(cap, action, format, query, interactive):
-                return False
+    # filter by type
+    movie_files = list(filter(lambda m: (m.media_type == MediaType.MOVIE), media))
+    tv_files = list(filter(lambda m: (m.media_type == MediaType.TV), media))
     
+    print("movie_files:")
+    print_list(movie_files)
+    print()
+    
+    print("tv_files:")
+    print_list(tv_files)
+    print()
+
+    for m in movie_files:
+        if not process_movie(m, action, movie_format, query, interactive):
+            return False
+
+    for m in tv_files:
+        if not process_tv(m, action, tv_format, query, interactive):
+            return False
+
     return True
     
 if __name__ == "__main__":
