@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from .common import SeriesInfo
 import imdb
 
 imdb_api = imdb.IMDb()
@@ -15,24 +16,23 @@ def search(query):
     
     if not res:
         return None, None
-    
+
     series = imdb_api.get_movie(res[0].movieID)
     imdb_api.update(series, "episodes")
-    num_seasons = series["number of seasons"]
-    title = series["title"]
+    
+    info = SeriesInfo()
+    info.title = series["title"]
+    
+    for season in series["episodes"]:
 
-    episodes = dict()
+        info.episodes[season] = dict()
 
-    for season in range(1, num_seasons + 1):
+        for episode in series["episodes"][season]:
 
-        episodes[season] = dict()
-
-        for episode in series["episodes"][season].keys():
-
-            episodes[season][episode] = dict()
-            episodes[season][episode]["title"] = series["episodes"][season][episode]["title"]
+            info.episodes[season][episode] = dict()
+            info.episodes[season][episode]["title"] = series["episodes"][season][episode]["title"]
     
     # save to reuse
-    past_results[query] = title, episodes
+    past_results[query] = info
     
-    return title, episodes
+    return info

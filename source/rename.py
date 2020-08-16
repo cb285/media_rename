@@ -159,9 +159,9 @@ def process_file(filename, action, format, query = None):
     print("input \"{}\"".format(filename))
     print("search \"{}\"".format(search))
     
-    series_title, episode_info = imdb.search(search)
+    info = imdb.search(search)
     
-    if not series_title:
+    if not info:
         print_error("not matches found")
         return False
     
@@ -169,16 +169,15 @@ def process_file(filename, action, format, query = None):
     season, episode = get_season_episode(filename)
     
     # check if have info for this episode
-    if season not in episode_info:
+    if season not in info.episodes:
         print_error("season {:>02} not found".format(season))
         return False
     
-    if episode not in episode_info[season]:
+    if episode not in info.episodes[season]:
         print_error("S{:>02}E{:>02} not found".format(season, episode))
         return False
     
-    episode_title = episode_info[season][episode]["title"]
-    new_episode_name = get_new_filename(filename, format, series_title, season, episode, episode_title)
+    new_episode_name = get_new_filename(filename, format, info.title, season, episode, info.episodes[season][episode]["title"])
     apply_action(filename, new_episode_name, action)
 
     print()
