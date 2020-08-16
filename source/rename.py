@@ -78,9 +78,29 @@ def update_history(old, new, action):
     history_file.write(s + "\n")
     history_file.close()
 
-def apply_action(old, new, action = Action.TEST, print_width = 0):
+def apply_action(old, new, action = Action.TEST, interactive = False, print_width = 0):
 
     print("[{}] \"{:<{width}}\" >> \"{}\"".format(action_to_string(action), old, new, width = print_width))
+
+    if interactive:
+        while True:
+            s = input("[y]es, [n]o, [s]kip: ")
+
+            if type(s) is str:
+                s = s.strip().lower()
+
+            if (s == "y") or (s == "yes"):
+                print("yes")
+                break
+            elif (s == "n") or (s == "no"):
+                print("no")
+                return False
+            if (s == "s") or (s == "skip"):
+                print("skip")
+                return True
+            else:
+                print("invalid option")
+                continue
 
     if action != Action.TEST:
 
@@ -150,7 +170,7 @@ def guess_title(filename):
     
     return title.strip()
 
-def process_file(filename, action, format, query = None):
+def process_file(filename, action, format, query = None, interactive = False):
     if not query:
         search = guess_title(filename)
     else:
@@ -178,7 +198,9 @@ def process_file(filename, action, format, query = None):
         return False
     
     new_episode_name = get_new_filename(filename, format, info.title, season, episode, info.episodes[season][episode]["title"])
-    apply_action(filename, new_episode_name, action)
+    
+    if not apply_action(filename, new_episode_name, action, interactive=interactive):
+        return False
 
     print()
     return True
@@ -203,6 +225,7 @@ def main():
     parser.add_argument("--format", "-f", required = True, type=str, action="store", help=format_help())
     parser.add_argument("--action", "-a", required = False, type=str, action="store", help="test, copy, or move")
     parser.add_argument("--query", "-q", required = False, type=str, action="store", help="search query")
+    parser.add_argument("--interactive", "-int", required = False, action="store_true", help="interactive mode")
     
     args, args_unknown = parser.parse_known_args()
     
@@ -210,6 +233,7 @@ def main():
     format = args.format
     action = get_action(args.action)
     query = args.query
+    interactive = args.interactive
     
     # check for valid action
     if not action:
@@ -230,12 +254,12 @@ def main():
     
     if len(episodes) != 0:
         for ep in episodes:
-            if not process_file(ep, action, format, query):
+            if not process_file(ep, action, format, query, interactive):
                 return False
     
     if len(captions) != 0:
         for cap in captions:
-            if not process_file(cap, action, format, query):
+            if not process_file(cap, action, format, query, interactive):
                 return False
     
     return True
