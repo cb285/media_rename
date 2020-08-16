@@ -110,15 +110,16 @@ def identify_media(filename):
     season, episode = get_season_episode(filename)
     rv.file_type = file.type(filename)
 
-    # tv show file
-    if season:
-        rv.media_type = MediaType.TV
-        rv.season = season
-        rv.episode = episode
+    if (rv.file_type == FileType.VIDEO) or (rv.file_type == FileType.CAPTION):
+        # tv show file
+        if season:
+            rv.media_type = MediaType.TV
+            rv.season = season
+            rv.episode = episode
 
-    # movie file
-    else:
-        rv.media_type = MediaType.MOVIE
+        # movie file
+        else:
+            rv.media_type = MediaType.MOVIE
 
     return rv
 
@@ -194,14 +195,16 @@ def get_action(arg):
     
 def guess_title(media):
 
-    words = re.split('[^a-zA-Z]', media.filename)
+    filename = file.basename(media.filename)
+
+    words = re.split('[^a-zA-Z]', filename)
     
     words = [word.lower() for word in words]
     
     title = ""
     
     if (media.media_type == MediaType.MOVIE):
-        return "".join(media.filename.split(".")[:-1])
+        return "".join(filename.split(".")[:-1])
     for i in range(len(words)):
         if (i < (len(words) - 2)) and (words[i] == "s") and (words[i + 2] == "e"):
             break
@@ -332,8 +335,8 @@ def main():
     media = []
     
     # identify files
-    for file in files:
-        media.append(identify_media(file))
+    for f in files:
+        media.append(identify_media(f))
     
     # filter by type
     movie_files = list(filter(lambda m: (m.media_type == MediaType.MOVIE), media))

@@ -5,6 +5,7 @@ import shutil
 import glob
 from enum import Enum
 import mimetypes
+import hashlib
 
 class FileType(Enum):
     VIDEO =   0
@@ -14,6 +15,9 @@ class FileType(Enum):
 
 def makedirs(dir):
     os.makedirs(new, exist_ok=True)
+
+def basename(filename):
+    return os.path.basename(filename)
 
 def move(src, dest, makedirs = False):
 
