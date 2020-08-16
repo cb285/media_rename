@@ -69,5 +69,15 @@ def type(filename):
         return FileType.UNKNOWN
 
 def listdir(directory, recursive = False):
-    files = glob.glob(directory + "/**", recursive=recursive)
-    return [f for f in files if os.path.isfile(f)]
+
+    if not recursive:
+        files = glob.glob(directory)
+        return [f for f in files if os.path.isfile(f)]
+
+    rv = []
+
+    for currentpath, folders, files in os.walk(directory):
+        for file in files:
+            rv.append(os.path.join(currentpath, file))
+
+    return rv
