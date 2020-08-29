@@ -22,14 +22,14 @@ def basename(filename):
 def move(src, dest, makedirs = False):
 
     if makedirs:
-        makedirs(new)
+        makedirs(dest)
 
     shutil.move(src, dest)
 
 def copy(src, dest, make_dirs = False):
     
     if makedirs:
-        makedirs(new)
+        makedirs(dest)
         
     shutil.copy(src, dest)
 
