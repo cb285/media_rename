@@ -13,6 +13,8 @@ import colorama
 HISTORY_FILENAME = "history"
 past_show_info = dict()
 
+NON_TITLE_WORDS = [ "bluray", "brrip", "webrip", "aac", "aac2", "h264", "480i", "576i", "480p", "576p", "720p", "1080i", "1080p", "x264", "x265" ]
+
 class Action(Enum):
     TEST = 0
     MOVE = 1
@@ -85,9 +87,9 @@ def format_tv(show, format, season, episode, old_filename):
 
     return new + extension
     
-def get_season_episode(filename):
+def get_season_episode(s):
 
-    m = re.search("(?i)S(\d+)E(\d+)", filename)
+    m = re.search("(?i)S(\d+)E(\d+)", s)
 
     # no results
     if not m:
@@ -192,23 +194,29 @@ def get_action(arg):
 
     print_error("invalid action \"{}\"".format(arg))
     return None
-    
+
 def guess_title(media):
 
     filename = file.basename(media.filename)
 
-    words = re.split('[^a-zA-Z]', filename)
+    words = re.split('[^a-zA-Z0-9]', filename)
     
     words = [word.lower() for word in words]
     
+    # remove extension
+    words = words[:-1]
+    
     title = ""
     
-    if (media.media_type == MediaType.MOVIE):
-        return "".join(filename.split(".")[:-1])
-    for i in range(len(words)):
-        if (i < (len(words) - 2)) and (words[i] == "s") and (words[i + 2] == "e"):
+    for word in words:
+    
+        # assume title stops when we reach a non-title word or "SxxExx"
+        season, episode = get_season_episode(word)
+
+        if season or (word in NON_TITLE_WORDS):
             break
-        title += words[i] + " "
+        else:
+            title += word + " "
     
     return title.strip()
 
