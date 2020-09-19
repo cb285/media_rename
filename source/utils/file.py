@@ -24,13 +24,19 @@ def basename(filename):
 
 def move(src, dest, make_dirs = False):
 
+    src = os.path.join(dirname(src), src)
+    dest = os.path.join(dirname(dest), dest)
+
     if make_dirs:
         makedirs(dest)
 
     shutil.move(src, dest)
 
 def copy(src, dest, make_dirs = False):
-    
+
+    src = os.path.join(dirname(src), src)
+    dest = os.path.join(dirname(dest), dest)
+
     if make_dirs:
         makedirs(dest)
         
