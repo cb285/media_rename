@@ -14,7 +14,10 @@ class FileType(Enum):
     UNKNOWN = 3
 
 def makedirs(dir):
-    os.makedirs(new, exist_ok=True)
+    os.makedirs(dirname(dir), exist_ok=True)
+
+def dirname(filename):
+    return os.path.dirname(filename)
 
 def basename(filename):
     return os.path.basename(filename)
