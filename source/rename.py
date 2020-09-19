@@ -166,9 +166,9 @@ def apply_action(old, new, action = Action.TEST, interactive = False, print_widt
 
         try:
             if action == Action.MOVE:
-                file.move(old, new, makedirs=True)
+                file.move(old, new, make_dirs=True)
             elif action == Action.COPY:
-                file.copy(old, new, makedirs=True)
+                file.copy(old, new, make_dirs=True)
             else:
                 return False
 

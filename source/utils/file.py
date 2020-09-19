@@ -19,16 +19,16 @@ def makedirs(dir):
 def basename(filename):
     return os.path.basename(filename)
 
-def move(src, dest, makedirs = False):
+def move(src, dest, make_dirs = False):
 
-    if makedirs:
+    if make_dirs:
         makedirs(dest)
 
     shutil.move(src, dest)
 
 def copy(src, dest, make_dirs = False):
     
-    if makedirs:
+    if make_dirs:
         makedirs(dest)
         
     shutil.copy(src, dest)
