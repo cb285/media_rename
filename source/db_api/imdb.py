@@ -4,13 +4,14 @@ from .common import TvInfo, MovieInfo
 import imdb
 
 imdb_api = imdb.IMDb()
-past_results = dict()
+past_movie_results = dict()
+past_tv_results = dict()
 
 def search_tv(query):
-    
+    global past_tv_results
     # check if already have results
-    if query in past_results:
-        return past_results[query]
+    if query in past_tv_results:
+        return past_tv_results[query]
     
     res = imdb_api.search_movie(query)
     
@@ -34,15 +35,15 @@ def search_tv(query):
             info.episodes[season][episode]["title"] = series["episodes"][season][episode]["title"]
     
     # save to reuse
-    past_results[query] = info
+    past_tv_results[query] = info
     
     return info
 
 def search_movie(query):
-    
+    global past_movie_results
     # check if already have results
-    if query in past_results:
-        return past_results[query]
+    if query in past_movie_results:
+        return past_movie_results[query]
     
     res = imdb_api.search_movie(query)
     
@@ -54,5 +55,7 @@ def search_movie(query):
     info = MovieInfo()
     info.title = movie["title"]
     info.year = movie["year"]
+
+    past_movie_results[query] = info 
     
     return info
