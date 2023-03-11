@@ -7,6 +7,7 @@ import os.path
 import hashlib
 from utils import file
 from utils.file import FileType
+from utils.language import LANGUAGE_MAP
 from db_api import imdb
 import colorama
 
@@ -61,9 +62,13 @@ def action_to_string(action):
     else:
         return "invalid"
 
-def format_movie(movie, format, old_filename):
+def format_movie(movie, format, old_filename, language = None):
 
     extension = file.extension(old_filename)
+
+    if language:
+        extension = "." + language + extension
+
     new = format
     
     new = new.replace(Format.TITLE.value[0], movie.title)
@@ -71,11 +76,14 @@ def format_movie(movie, format, old_filename):
     
     return new + extension
 
-def format_tv(show, format, season, episode, old_filename):
+def format_tv(show, format, season, episode, old_filename, language = None):
 
     episode_info = show.episodes[season][episode]
 
     extension = file.extension(old_filename)
+
+    if language:
+        extension = "." + language + extension
 
     new = format
 
@@ -88,26 +96,39 @@ def format_tv(show, format, season, episode, old_filename):
     return new + extension
     
 def get_season_episode(s):
-
-    m = re.search("(?i)S(\d+)E(\d+)", s)
+    matches = re.findall("(?i)S(\d+)(?:E(\d+))?", s)
 
     # no results
-    if not m:
+    if len(matches) == 0:
         return None, None
 
-    groups = m.groups()
+    # prefer matches later in string that have both season and episode
+    matches.reverse()
 
-    if len(groups) >= 2:
-        return int(groups[0]), int(groups[1])
+    for match in matches:
+        if match[1] != "":
+            return int(match[0]), int(match[1])
 
-    return None, None
-    
-def identify_media(filename):
-    
-    filename = filename.strip()
-    
+    return int(matches[-1][0]), None
+
+def get_language(filename):
+    words = re.split('[^a-zA-Z0-9]', filename)
+    words = [word.lower() for word in words]
+    words.reverse()
+
+    for word in words:
+        for lang in LANGUAGE_MAP:
+            if word in lang[0]:
+                return lang[1]
+    return None
+
+def identify_media(filename, root_dir = None):
     rv = MediaFile()
-    rv.filename = filename
+    rv.location = os.path.abspath(filename)
+    rv.filename = filename.strip()
+
+    if root_dir:
+        rv.filename = os.path.relpath(rv.filename, root_dir)
 
     season, episode = get_season_episode(filename)
     rv.file_type = file.type(filename)
@@ -197,7 +218,7 @@ def get_action(arg):
 
 def guess_title(media):
 
-    filename = file.basename(media.filename)
+    filename = media.filename #file.basename
 
     words = re.split('[^a-zA-Z0-9]', filename)
     
@@ -220,7 +241,7 @@ def guess_title(media):
     
     return title.strip()
 
-def process_movie(mov, action, format, query = None, interactive = False):
+def process_movie(mov, action, format, query = None, interactive = False, language = None):
 
     if not query:
         search = guess_title(mov)
@@ -230,21 +251,37 @@ def process_movie(mov, action, format, query = None, interactive = False):
     print("movie file \"{}\"".format(mov.filename))
     print("search \"{}\"".format(search))
 
+    # get subtitle language
+    det_language = None
+    if mov.file_type == FileType.CAPTION:
+        det_language = get_language(mov.filename)
+
+        if not det_language:
+            if not language:
+                print_error("couldn't identify subtitle language")
+                return False
+            else:
+                det_language = language.capitalize()
+        elif language is not None:
+            if language.lower() != det_language.lower():
+                # skip other languages
+                return True
+
     info = imdb.search_movie(search)
     
     if not info:
         print_error("not matches found")
         return False
     
-    new_filename = format_movie(info, format, mov.filename)
+    new_filename = format_movie(info, format, mov.filename, det_language)
     
-    if not apply_action(mov.filename, new_filename, action, interactive=interactive):
+    if not apply_action(mov.location, new_filename, action, interactive=interactive):
         return False
 
     print()
     return True
 
-def process_tv(tv, action, format, query = None, interactive = False):
+def process_tv(tv, action, format, query = None, interactive = False, language = None):
 
     if not query:
         search = guess_title(tv)
@@ -262,7 +299,23 @@ def process_tv(tv, action, format, query = None, interactive = False):
     
     # get season and episode from filename
     season, episode = get_season_episode(tv.filename)
-    
+
+    # get subtitle language
+    det_language = None
+    if tv.file_type == FileType.CAPTION:
+        det_language = get_language(tv.filename)
+
+        if not det_language:
+            if not language:
+                print_error("couldn't identify subtitle language")
+                return False
+            else:
+                det_language = language.capitalize()
+        elif language is not None:
+            if language.lower() != det_language.lower():
+                # skip other languages
+                return True
+
     # check if have info for this episode
     if season not in info.episodes:
         print_error("season {:>02} not found".format(season))
@@ -272,9 +325,9 @@ def process_tv(tv, action, format, query = None, interactive = False):
         print_error("S{:>02}E{:>02} not found".format(season, episode))
         return False
     
-    new_filename = format_tv(info, format, season, episode, tv.filename)
+    new_filename = format_tv(info, format, season, episode, tv.filename, det_language)
     
-    if not apply_action(tv.filename, new_filename, action, interactive=interactive):
+    if not apply_action(tv.location, new_filename, action, interactive=interactive):
         return False
 
     print()
@@ -306,6 +359,8 @@ def main():
     parser.add_argument("--action", "-a", required = False, type=str, action="store", help="test, copy, or move")
     parser.add_argument("--query", "-q", required = False, type=str, action="store", help="search query")
     parser.add_argument("--interactive", "-int", required = False, action="store_true", help="interactive mode")
+    parser.add_argument("--root", required = False, type=str, action="store", help="directory under which all input files are located")
+    parser.add_argument("--language", "-lang", required = False, type=str, action="store", help="only use subtitles with this language, fallback to when language is not detected")
 
     args, args_unknown = parser.parse_known_args()
 
@@ -316,6 +371,8 @@ def main():
     action = get_action(args.action)
     query = args.query
     interactive = args.interactive
+    root_dir = args.root
+    language = args.language
 
     # check for valid action
     if not action:
@@ -339,12 +396,12 @@ def main():
 
     # sort files alphabetically
     files = sorted(files, key=str.lower)
-    
+
     media = []
     
     # identify files
     for f in files:
-        media.append(identify_media(f))
+        media.append(identify_media(f, root_dir))
     
     # filter by type
     movie_files = list(filter(lambda m: (m.media_type == MediaType.MOVIE), media))
@@ -359,11 +416,11 @@ def main():
     print()
 
     for m in movie_files:
-        if not process_movie(m, action, movie_format, query, interactive):
+        if not process_movie(m, action, movie_format, query, interactive, language):
             return False
 
     for m in tv_files:
-        if not process_tv(m, action, tv_format, query, interactive):
+        if not process_tv(m, action, tv_format, query, interactive, language):
             return False
 
     return True
