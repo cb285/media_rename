@@ -256,19 +256,19 @@ def process_movie(mov, action, format, query = None, interactive = False, langua
     if mov.file_type == FileType.CAPTION:
         det_language = get_language(mov.filename)
 
+        # couldn't identify language
         if not det_language:
-            if not language:
-                print_error("couldn't identify subtitle language")
-                return False
-            else:
-                det_language = language.capitalize()
+            #if not language:
+            print_error("couldn't identify subtitle language")
+            return True
+        # identified a language
         elif language is not None:
             if language.lower() != det_language.lower():
                 # skip other languages
                 return True
 
     info = imdb.search_movie(search)
-    
+
     if not info:
         print_error("not matches found")
         return False
@@ -305,12 +305,11 @@ def process_tv(tv, action, format, query = None, interactive = False, language =
     if tv.file_type == FileType.CAPTION:
         det_language = get_language(tv.filename)
 
+        # couldn't idenfify language
         if not det_language:
-            if not language:
-                print_error("couldn't identify subtitle language")
-                return False
-            else:
-                det_language = language.capitalize()
+            print_error("couldn't identify subtitle language")
+            return False
+        # identified a language
         elif language is not None:
             if language.lower() != det_language.lower():
                 # skip other languages
