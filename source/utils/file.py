@@ -43,6 +43,8 @@ def copy(src, dest, make_dirs = False):
     shutil.copy(src, dest)
 
 def checksum(filename):
+    # disable for now, take a long time
+    return ""
 
     try:
         file = open(filename, "rb")
