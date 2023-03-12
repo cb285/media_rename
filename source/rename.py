@@ -308,7 +308,7 @@ def process_tv(tv, action, format, query = None, interactive = False, language =
         # couldn't idenfify language
         if not det_language:
             print_error("couldn't identify subtitle language")
-            return False
+            return True
         # identified a language
         elif language is not None:
             if language.lower() != det_language.lower():
